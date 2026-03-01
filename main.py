@@ -17,7 +17,7 @@ load_dotenv()
 from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from vision_agents.core import Agent, AgentLauncher, Runner, User
@@ -190,7 +190,6 @@ def _add_middleware(runner: Runner) -> None:
     @runner.fast_api.middleware("http")
     async def rewrite_api(request, call_next):
         p = request.scope.get("path", "")
-        # Don't rewrite /api, /api/health — we have explicit routes
         if p in ("/api", "/api/health"):
             pass
         elif p.startswith("/api/"):
@@ -198,7 +197,14 @@ def _add_middleware(runner: Runner) -> None:
             if p == "/token":
                 p = "/auth/token"
         request.scope["path"] = p
-        return await call_next(request)
+        response = await call_next(request)
+        # Treat session-not-found 404 as 200 (session ended or never existed)
+        if response.status_code == 404 and "/sessions" in p:
+            return JSONResponse(
+                status_code=200,
+                content={"status": "ended", "message": "Session not found or already ended"},
+            )
+        return response
 
     runner.fast_api.add_middleware(GZipMiddleware, minimum_size=500)
     runner.fast_api.add_middleware(
