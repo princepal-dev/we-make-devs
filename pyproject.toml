@@ -8,6 +8,7 @@ dependencies = [
     "roboflow>=0.2.0",
     "python-dotenv>=1.0.0",
     "stream-chat>=4.0.0",
+    "getstream>=2.0.0",
     "Pillow>=10.0.0",
     "opencv-python>=4.8.0",
 ]

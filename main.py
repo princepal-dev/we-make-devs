@@ -73,15 +73,71 @@ async def create_agent(**kwargs) -> Agent:
 
 
 # Delay (seconds) before agent joins — gives mobile app time to join the call first.
-# Vision Agents also waits ~10s for participants after joining; total window ≈ delay + 10s.
+# We poll Stream for participants; proceed as soon as one joins or after this timeout.
 PARTICIPANT_JOIN_DELAY = int(os.getenv("PARTICIPANT_JOIN_DELAY", "30"))
+PARTICIPANT_POLL_INTERVAL = int(os.getenv("PARTICIPANT_POLL_INTERVAL", "2"))
+AGENT_USER_ID = "isl-voice-agent"
+
+
+async def _has_non_agent_participant(call_type: str, call_id: str) -> bool:
+    """Check if the call has at least one participant who is not the agent."""
+    try:
+        from getstream import Stream
+    except ImportError:
+        return False
+    api_key = os.getenv("STREAM_API_KEY")
+    api_secret = os.getenv("STREAM_API_SECRET")
+    if not api_key or not api_secret:
+        return False
+    try:
+        client = Stream(api_key=api_key, api_secret=api_secret)
+        resp = await asyncio.to_thread(
+            client.video.query_call_members, id=call_id, type=call_type
+        )
+        members = getattr(resp, "data", resp)
+        if hasattr(members, "members"):
+            members = members.members
+        if not members:
+            return False
+        for m in members:
+            uid = getattr(m, "user_id", None)
+            if not uid and hasattr(m, "user"):
+                u = getattr(m, "user", None)
+                uid = getattr(u, "id", None) if u else None
+            if uid and str(uid) != AGENT_USER_ID:
+                return True
+        return False
+    except Exception as e:
+        if "Can't find call" in str(e) or "find call" in str(e).lower():
+            return False
+        logger.debug("Participant poll error: %s", e)
+        return False
+
+
+async def _wait_for_participant(call_type: str, call_id: str, max_wait: int) -> bool:
+    """Poll for a non-agent participant; return True if one joins within max_wait seconds."""
+    elapsed = 0
+    while elapsed < max_wait:
+        if await _has_non_agent_participant(call_type, call_id):
+            return True
+        await asyncio.sleep(min(PARTICIPANT_POLL_INTERVAL, max_wait - elapsed))
+        elapsed += PARTICIPANT_POLL_INTERVAL
+    return False
 
 
 async def join_call(agent: Agent, call_type: str, call_id: str, **kwargs) -> None:
     await agent.create_user()  # Required: upsert agent user in Stream before create_call
     if PARTICIPANT_JOIN_DELAY > 0:
-        logger.info("Waiting %ds for participant to join before agent joins...", PARTICIPANT_JOIN_DELAY)
-        await asyncio.sleep(PARTICIPANT_JOIN_DELAY)
+        logger.info(
+            "Polling for participant (max %ds, interval %ds)...",
+            PARTICIPANT_JOIN_DELAY,
+            PARTICIPANT_POLL_INTERVAL,
+        )
+        found = await _wait_for_participant(call_type, call_id, PARTICIPANT_JOIN_DELAY)
+        if found:
+            logger.info("Participant detected, agent joining.")
+        else:
+            logger.info("No participant after %ds, agent joining anyway.", PARTICIPANT_JOIN_DELAY)
     call = await agent.create_call(call_type, call_id)
     async with agent.join(call):
         await agent.finish()
