@@ -107,6 +107,22 @@ def _create_runner() -> Runner:
     return Runner(launcher)
 
 
+def _add_home_page(runner: Runner) -> None:
+    """Serve landing page at /."""
+    from fastapi.responses import HTMLResponse, FileResponse
+
+    index_path = Path(__file__).parent / "static" / "index.html"
+
+    @runner.fast_api.get("/", response_class=HTMLResponse)
+    async def home():
+        if index_path.exists():
+            return FileResponse(index_path, media_type="text/html")
+        return HTMLResponse(
+            "<h1>ISL Voice</h1><p>Indian Sign Language to Voice AI. <a href='/docs'>API Docs</a></p>",
+            status_code=200,
+        )
+
+
 def _add_custom_routes(runner: Runner) -> None:
     """Add custom /auth/token endpoint for Stream WebRTC auth."""
 
@@ -155,7 +171,12 @@ def _add_custom_routes(runner: Runner) -> None:
 
 
 def _add_keepalive(runner: Runner) -> None:
-    """Add /keepalive endpoint and background self-ping for free-tier deployment."""
+    """Add /keepalive and /health endpoints for free-tier deployment."""
+
+    @runner.fast_api.get("/health")
+    async def health():
+        """Health check — returns JSON for liveness probes."""
+        return {"status": "ok"}
 
     @runner.fast_api.get("/keepalive")
     async def keepalive():
@@ -193,6 +214,7 @@ def _print_startup_banner() -> None:
     print("""
 ✋ ISL Voice Backend starting...
    Endpoints:
+   ├── GET    /               → Home / landing page
    ├── POST   /sessions       → Start agent session
    ├── DELETE /sessions/{id}  → End session
    ├── GET    /sessions/{id}  → Session status
@@ -208,6 +230,7 @@ if __name__ == "__main__":
     _validate_env()
     _load_instructions()  # Fail fast if instructions file missing
     runner = _create_runner()
+    _add_home_page(runner)
     _add_custom_routes(runner)
     _add_keepalive(runner)
 

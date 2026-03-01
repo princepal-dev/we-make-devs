@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#050507">
+  <meta name="description" content="ISL Voice turns Indian Sign Language into spoken words in real time. Sign into your camera — AI speaks for you. Built for accessibility.">
+  <meta property="og:title" content="ISL Voice — Sign to Speech in Real Time">
+  <meta property="og:description" content="Turn Indian Sign Language into spoken words. Sign. We speak. Built for the deaf and mute community.">
+  <meta property="og:type" content="website">
+  <title>ISL Voice — Indian Sign Language to Voice AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #050507;
+      --bg-card: rgba(255, 255, 255, 0.03);
+      --text: #fafafa;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-2: #22d3ee;
+      --accent-3: #06b6d4;
+      --purple: #a78bfa;
+      --glow: rgba(56, 189, 248, 0.4);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    a, button {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 1rem;
+      z-index: 10000;
+      padding: 0.75rem 1.25rem;
+      background: var(--accent);
+      color: var(--bg);
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: 8px;
+      transition: top 0.2s;
+    }
+    .skip-link:focus {
+      top: 1rem;
+      outline: 2px solid white;
+      outline-offset: 2px;
+    }
+
+    /* Animated mesh gradient background */
+    .bg-mesh {
+      position: fixed;
+      inset: 0;
+      background: 
+        radial-gradient(at 40% 20%, rgba(56, 189, 248, 0.15) 0%, transparent 50%),
+        radial-gradient(at 80% 0%, rgba(167, 139, 250, 0.12) 0%, transparent 50%),
+        radial-gradient(at 0% 50%, rgba(6, 182, 212, 0.08) 0%, transparent 50%),
+        radial-gradient(at 80% 50%, rgba(56, 189, 248, 0.06) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bg-mesh::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      opacity: 0.5;
+    }
+
+    /* Floating orbs */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.5;
+      pointer-events: none;
+      z-index: 0;
+      animation: float 20s ease-in-out infinite;
+    }
+    .orb-1 { width: 400px; height: 400px; background: var(--accent); top: -100px; right: -100px; animation-delay: 0s; }
+    .orb-2 { width: 300px; height: 300px; background: var(--purple); bottom: 20%; left: -80px; animation-delay: -7s; }
+    .orb-3 { width: 200px; height: 200px; background: var(--accent-3); bottom: -50px; right: 30%; animation-delay: -14s; }
+    @keyframes float {
+      0%, 100% { transform: translate(0, 0); }
+      33% { transform: translate(30px, -30px); }
+      66% { transform: translate(-20px, 20px); }
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 5rem 1.5rem 6rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 5rem;
+    }
+
+    .logo {
+      display: inline-block;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+      animation: fadeUp 0.8s ease-out;
+    }
+
+    .hackathon-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      margin-bottom: 2rem;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(167, 139, 250, 0.15) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--accent-2);
+      text-decoration: none;
+      transition: all 0.2s;
+      animation: fadeUp 0.8s ease-out 0.05s both;
+    }
+    .hackathon-badge:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+      transform: scale(1.03);
+    }
+    .hackathon-badge:active {
+      transform: scale(0.98);
+    }
+
+    .hero-visual {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 2rem;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+      border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+      animation: morph 8s ease-in-out infinite, fadeUp 0.8s ease-out 0.1s both;
+      box-shadow: 0 0 60px rgba(56, 189, 248, 0.3);
+    }
+    @keyframes morph {
+      0%, 100% { border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; }
+      25% { border-radius: 58% 42% 75% 25% / 76% 46% 54% 24%; }
+      50% { border-radius: 50% 50% 33% 67% / 55% 27% 73% 45%; }
+      75% { border-radius: 33% 67% 58% 42% / 63% 68% 32% 37%; }
+    }
+
+    h1 {
+      font-size: clamp(3rem, 8vw, 5rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+      margin-bottom: 1.25rem;
+      background: linear-gradient(135deg, #fff 0%, var(--accent) 50%, var(--purple) 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: fadeUp 0.8s ease-out 0.2s both, shimmer 6s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      0%, 100% { background-position: 0% center; }
+      50% { background-position: 200% center; }
+    }
+
+    .tagline {
+      font-size: 1.35rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      max-width: 540px;
+      margin: 0 auto 2rem;
+      animation: fadeUp 0.8s ease-out 0.3s both;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.6rem 1.25rem;
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 9999px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      animation: fadeUp 0.8s ease-out 0.4s both;
+    }
+    .hero-cta {
+      margin-top: 2rem;
+      animation: fadeUp 0.8s ease-out 0.5s both;
+    }
+    .hero-cta .btn { font-size: 1.1rem; padding: 1rem 2rem; }
+    .hero-cta-hint {
+      margin-top: 0.75rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      opacity: 0.8;
+    }
+
+    .hero-badge .dot {
+      width: 8px;
+      height: 8px;
+      background: linear-gradient(135deg, var(--accent), #34d399);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.1); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .section {
+      margin-bottom: 4rem;
+      animation: fadeUp 0.8s ease-out both;
+    }
+    .section:nth-of-type(1) { animation-delay: 0.5s; }
+    .section:nth-of-type(2) { animation-delay: 0.6s; }
+    .section:nth-of-type(3) { animation-delay: 0.7s; }
+    .section:nth-of-type(4) { animation-delay: 0.8s; }
+
+    .section-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .section h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+
+    .section p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      line-height: 1.7;
+    }
+
+    .flow-cards {
+      display: grid;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .flow-card {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 1.5rem 1.75rem;
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      transition: all 0.3s ease;
+    }
+
+    .flow-card:hover {
+      border-color: rgba(56, 189, 248, 0.3);
+      transform: translateX(8px);
+      box-shadow: 0 0 40px rgba(56, 189, 248, 0.08), 0 0 80px rgba(167, 139, 250, 0.06);
+    }
+    .flow-card::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 17px;
+      padding: 1px;
+      background: linear-gradient(135deg, var(--accent), var(--purple), var(--accent-3), var(--accent));
+      background-size: 300% 300%;
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      pointer-events: none;
+    }
+    .flow-card:hover::before {
+      opacity: 0.6;
+      animation: gradientShift 3s ease infinite;
+    }
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+
+    .flow-card-icon {
+      font-size: 1.5rem;
+      line-height: 1;
+      opacity: 0.9;
+    }
+    .flow-card-num {
+      font-family: 'Space Mono', monospace;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: transparent;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+    .section-alt {
+      background: linear-gradient(180deg, transparent 0%, rgba(56, 189, 248, 0.04) 50%, transparent 100%);
+      padding: 3rem 0;
+      border-radius: 24px;
+    }
+
+    .goals-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .goal-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 1.25rem;
+      padding: 1.5rem 1.75rem;
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px dashed rgba(56, 189, 248, 0.25);
+      border-radius: 16px;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .goal-card:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 30px rgba(56, 189, 248, 0.06);
+    }
+    .goal-icon {
+      font-size: 1.75rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .goal-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+    .goal-card p {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    .flow-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    .flow-card p {
+      font-size: 0.95rem;
+      margin: 0;
+    }
+
+    .cta-group {
+      margin-top: 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 1rem 2rem;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-3) 100%);
+      color: var(--bg);
+      box-shadow: 0 4px 24px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 8px 32px rgba(56, 189, 248, 0.4);
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--accent);
+      border: 2px solid rgba(56, 189, 248, 0.5);
+      box-shadow: none;
+    }
+    .btn-secondary:hover {
+      background: rgba(56, 189, 248, 0.1);
+      border-color: var(--accent);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+    }
+    .btn-primary:active {
+      transform: translateY(0) scale(0.98);
+    }
+
+    footer {
+      margin-top: 5rem;
+      padding-top: 2.5rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .footer-tech {
+      margin-bottom: 0.5rem;
+      font-size: 0.85rem;
+      opacity: 0.9;
+    }
+    .footer-links .sep {
+      margin: 0 0.5rem;
+      opacity: 0.5;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    footer a:hover {
+      color: var(--accent-2);
+    }
+    footer a:focus-visible,
+    .btn:focus-visible,
+    .hackathon-badge:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+
+    /* Scroll progress bar */
+    .scroll-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 0%;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent), var(--purple));
+      border-radius: 0 2px 2px 0;
+      z-index: 9999;
+      transition: width 0.1s ease-out;
+    }
+
+    /* Magnetic button wrapper */
+    .magnetic-wrap {
+      display: inline-block;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    /* Tilt card wrapper */
+    .flow-card {
+      transform-style: preserve-3d;
+      perspective: 1000px;
+    }
+    .flow-card-inner {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      width: 100%;
+      transform-style: preserve-3d;
+      transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    .flow-card-inner .flow-card-icon {
+      flex-shrink: 0;
+    }
+
+    /* Reveal on scroll */
+    .reveal {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-delay-4 { transition-delay: 0.4s; }
+
+    /* Glow ring on hero visual */
+    .hero-visual::before {
+      content: '';
+      position: absolute;
+      inset: -20px;
+      border-radius: inherit;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      opacity: 0.2;
+      filter: blur(24px);
+      animation: morph 8s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .hero-visual {
+      position: relative;
+    }
+
+    /* Mobile-first responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 2rem 1rem 4rem;
+        padding-left: max(1rem, env(safe-area-inset-left));
+        padding-right: max(1rem, env(safe-area-inset-right));
+        padding-bottom: max(4rem, env(safe-area-inset-bottom));
+      }
+      header { margin-bottom: 3rem; }
+      .hackathon-badge {
+        font-size: 0.8rem;
+        padding: 0.6rem 1rem;
+        margin-bottom: 1.5rem;
+        min-height: 44px;
+        min-width: 44px;
+        justify-content: center;
+      }
+      .hero-visual {
+        width: 90px;
+        height: 90px;
+        margin-bottom: 1.5rem;
+      }
+      h1 { font-size: clamp(2.25rem, 10vw, 3.5rem); margin-bottom: 1rem; }
+      .tagline {
+        font-size: 1.1rem;
+        margin-bottom: 1.5rem;
+        padding: 0 0.5rem;
+      }
+      .hero-badge {
+        font-size: 0.85rem;
+        padding: 0.5rem 1rem;
+        min-height: 44px;
+        display: inline-flex;
+      }
+      .hero-cta {
+        margin-top: 1.5rem;
+      }
+      .hero-cta .btn {
+        width: 100%;
+        max-width: 320px;
+        justify-content: center;
+      }
+      .section {
+        margin-bottom: 3rem;
+      }
+      .section-title { font-size: 0.7rem; letter-spacing: 0.15em; }
+      .section h2 { font-size: 1.4rem; }
+      .section p { font-size: 1rem; }
+      .flow-cards {
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+      }
+      .flow-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1.25rem;
+        min-height: auto;
+      }
+      .flow-card-inner {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.75rem 1rem;
+      }
+      .flow-card-inner .flow-card-icon {
+        order: -1;
+        margin-right: 0.25rem;
+      }
+      .flow-card-inner .flow-card-num {
+        order: -1;
+      }
+      .section-alt {
+        padding: 2.5rem 0;
+      }
+      .goals-list { margin-top: 1.5rem; gap: 0.75rem; }
+      .goal-card {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1.25rem;
+      }
+      .goal-card h3 { font-size: 1rem; }
+      .goal-card p { font-size: 0.9rem; }
+      .flow-card:hover {
+        transform: translateX(0) translateY(-4px);
+      }
+      .flow-card-num { font-size: 1.25rem; }
+      .flow-card h3 { font-size: 1rem; }
+      .flow-card p { font-size: 0.9rem; }
+      .btn {
+        padding: 1rem 1.5rem;
+        font-size: 0.95rem;
+        min-height: 48px;
+        min-width: 48px;
+        justify-content: center;
+      }
+      footer {
+        margin-top: 3rem;
+        padding-top: 2rem;
+        font-size: 0.85rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+      }
+      footer a {
+        display: inline-block;
+        padding: 0.25rem 0;
+        min-height: 44px;
+        line-height: 1.5;
+      }
+      /* Smaller orbs on mobile */
+      .orb-1 { width: 200px; height: 200px; filter: blur(60px); }
+      .orb-2 { width: 150px; height: 150px; filter: blur(50px); }
+      .orb-3 { width: 120px; height: 120px; filter: blur(40px); }
+    }
+
+    @media (max-width: 480px) {
+      .container { padding: 1.5rem 0.75rem 3rem; }
+      .flow-card { padding: 1rem; }
+      footer { font-size: 0.8rem; line-height: 1.8; }
+    }
+
+    /* Respect reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+      .orb { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <a href="#main" class="skip-link">Skip to content</a>
+  <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
+  <div class="bg-mesh"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <main id="main" class="container">
+    <header>
+      <a href="https://www.wemakedevs.org/hackathons" class="hackathon-badge" target="_blank" rel="noopener noreferrer">🏆 Created for Hackathon</a>
+      <div class="hero-visual" aria-hidden="true"></div>
+      <h1>ISL Voice</h1>
+      <p class="tagline">Sign in Indian Sign Language. Our AI speaks for you in real time — so everyone hears what you mean.</p>
+      <div class="hero-badge">
+        <span class="dot"></span>
+        API live & ready
+      </div>
+      <div class="hero-cta">
+        <a href="https://isl-voice-communicator.rork.app" class="btn btn-primary" target="_blank" rel="noopener noreferrer">Try it live →</a>
+        <p class="hero-cta-hint">Requires Expo Go on your phone</p>
+      </div>
+    </header>
+
+    <section class="section reveal">
+      <p class="section-title reveal reveal-delay-1">What we do</p>
+      <h2 class="reveal reveal-delay-2">You sign. We speak.</h2>
+      <p class="reveal reveal-delay-3">
+        Open the app and sign into the camera. Our AI watches your hands, recognizes Indian Sign Language gestures, turns them into natural sentences, and speaks them aloud — so the person in front of you hears you clearly. Real time. No delay.
+      </p>
+    </section>
+
+    <section class="section reveal">
+      <p class="section-title reveal reveal-delay-1">How it works</p>
+      <h2 class="reveal reveal-delay-2">Three steps to be heard</h2>
+      <div class="flow-cards">
+        <div class="flow-card" data-tilt>
+          <div class="flow-card-inner">
+            <span class="flow-card-icon" aria-hidden="true">✋</span>
+            <span class="flow-card-num">01</span>
+            <div>
+              <h3>Sign into the camera</h3>
+              <p>Use the mobile app and sign in Indian Sign Language</p>
+            </div>
+          </div>
+        </div>
+        <div class="flow-card" data-tilt>
+          <div class="flow-card-inner">
+            <span class="flow-card-icon" aria-hidden="true">👁</span>
+            <span class="flow-card-num">02</span>
+            <div>
+              <h3>AI recognizes gestures</h3>
+              <p>Roboflow vision model detects ISL signs in real time</p>
+            </div>
+          </div>
+        </div>
+        <div class="flow-card" data-tilt>
+          <div class="flow-card-inner">
+            <span class="flow-card-icon" aria-hidden="true">🔊</span>
+            <span class="flow-card-num">03</span>
+            <div>
+              <h3>Instant speech</h3>
+              <p>Gemini builds sentences, ElevenLabs speaks them aloud</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section reveal section-alt">
+      <p class="section-title reveal reveal-delay-1">For everyone</p>
+      <h2 class="reveal reveal-delay-2">Built for real conversations</h2>
+      <p class="reveal reveal-delay-3">
+        ISL Voice helps deaf and mute users communicate naturally — at home, at work, at the doctor’s office. No interpreter needed. Just sign, and the person in front of you hears your words.
+      </p>
+    </section>
+
+    <section class="section reveal">
+      <p class="section-title reveal reveal-delay-1">Future goals</p>
+      <h2 class="reveal reveal-delay-2">What we're building next</h2>
+      <div class="goals-list">
+        <div class="goal-card reveal reveal-delay-3">
+          <span class="goal-icon" aria-hidden="true">🌍</span>
+          <div>
+            <h3>Support all sign languages</h3>
+            <p>Beyond Indian Sign Language — ASL, BSL, and more. One app for sign language communities worldwide.</p>
+          </div>
+        </div>
+        <div class="goal-card reveal reveal-delay-4">
+          <span class="goal-icon" aria-hidden="true">📱</span>
+          <div>
+            <h3>Super lightweight mobile app</h3>
+            <p>Our current app is a fully working prototype. We're building a lighter, faster version for everyone — lower data, less battery, smooth on any device.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <p class="section-title reveal reveal-delay-1">Open source</p>
+      <h2 class="reveal reveal-delay-2">Built for the community</h2>
+      <p class="reveal reveal-delay-3">Powered by Vision Agents, Stream WebRTC, Roboflow, Gemini, ElevenLabs & Deepgram. Backend ready for mobile apps. Star us on GitHub.</p>
+      <div class="cta-group reveal reveal-delay-4">
+        <a href="https://isl-voice-communicator.rork.app" class="btn btn-primary" target="_blank" rel="noopener noreferrer">Try it live →</a>
+        <div class="magnetic-wrap" data-magnetic>
+          <a href="https://github.com/princepal-dev/we-make-devs" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">⭐ View on GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p class="footer-tech">Powered by Vision Agents · Roboflow · Gemini · ElevenLabs · Deepgram</p>
+      <p class="footer-links">
+        <a href="https://www.wemakedevs.org/hackathons" target="_blank" rel="noopener noreferrer">Hackathon</a>
+        <span class="sep">·</span>
+        <a href="https://github.com/princepal-dev/we-make-devs" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </p>
+    </footer>
+  </main>
+
+  <script>
+    (function() {
+      'use strict';
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // Scroll progress bar
+      const progress = document.getElementById('scroll-progress');
+      if (progress && !prefersReducedMotion) {
+        const onScroll = () => {
+          const h = document.documentElement.scrollHeight - window.innerHeight;
+          progress.style.width = (h > 0 ? (window.scrollY / h) * 100 : 0) + '%';
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+      }
+
+      // Scroll reveal
+      const reveals = document.querySelectorAll('.reveal');
+      if (reveals.length && !prefersReducedMotion) {
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(e => {
+            if (e.isIntersecting) e.target.classList.add('visible');
+          });
+        }, { rootMargin: '0px 0px -60px 0px', threshold: 0 });
+        reveals.forEach(el => observer.observe(el));
+      } else {
+        reveals.forEach(el => el.classList.add('visible'));
+      }
+
+      // Magnetic button (desktop / pointer fine)
+      const magnetic = document.querySelector('[data-magnetic]');
+      if (magnetic && window.matchMedia('(pointer: fine)').matches && !prefersReducedMotion) {
+        const btn = magnetic.querySelector('a');
+        if (btn) {
+          btn.addEventListener('mouseenter', () => magnetic.style.transform = '');
+          btn.addEventListener('mousemove', (e) => {
+            const rect = btn.getBoundingClientRect();
+            const x = (e.clientX - rect.left - rect.width / 2) * 0.3;
+            const y = (e.clientY - rect.top - rect.height / 2) * 0.3;
+            magnetic.style.transform = `translate(${x}px, ${y}px) scale(1.02)`;
+          });
+          btn.addEventListener('mouseleave', () => magnetic.style.transform = '');
+        }
+      }
+
+      // Tilt cards (desktop)
+      const tiltCards = document.querySelectorAll('[data-tilt]');
+      if (tiltCards.length && window.matchMedia('(pointer: fine)').matches && !prefersReducedMotion) {
+        tiltCards.forEach(card => {
+          const inner = card.querySelector('.flow-card-inner');
+          if (!inner) return;
+          card.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width - 0.5;
+            const y = (e.clientY - rect.top) / rect.height - 0.5;
+            inner.style.transform = `perspective(1000px) rotateX(${-y * 8}deg) rotateY(${x * 8}deg)`;
+          });
+          card.addEventListener('mouseleave', () => inner.style.transform = '');
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

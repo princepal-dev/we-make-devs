@@ -19,6 +19,7 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY agent/ agent/
 COPY main.py ./
+COPY static/ static/
 
 RUN pip install --no-cache-dir uv && uv pip install --system -e .
 
