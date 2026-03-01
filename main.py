@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from vision_agents.core import Agent, AgentLauncher, Runner, User
-from vision_agents.plugins import deepgram, elevenlabs, gemini, getstream
+from vision_agents.plugins import gemini, getstream
 
 from agent.isl_processor import ISLProcessor
 
@@ -31,7 +31,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BASE_URL = os.getenv("APP_URL", "https://we-make-devs.onrender.com").rstrip("/")
-DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
 HEALTH_RESPONSE = {"status": "ok", "message": "ISL Voice API"}
 KEEPALIVE_RESPONSE = {"status": "ok", "message": "keepalive"}
 
@@ -55,7 +54,7 @@ def _load_instructions() -> str:
 def _validate_env() -> None:
     required = [
         "STREAM_API_KEY", "STREAM_API_SECRET",
-        "GOOGLE_API_KEY", "ELEVENLABS_API_KEY", "DEEPGRAM_API_KEY",
+        "GOOGLE_API_KEY",
         "ROBOFLOW_API_KEY", "ROBOFLOW_WORKSPACE", "ROBOFLOW_PROJECT",
     ]
     missing = [k for k in required if not os.getenv(k)]
@@ -64,15 +63,12 @@ def _validate_env() -> None:
 
 
 async def create_agent(**kwargs) -> Agent:
-    voice_id = os.getenv("ELEVENLABS_VOICE_ID") or DEFAULT_VOICE_ID
     return Agent(
         edge=getstream.Edge(),
         agent_user=User(name="ISL Voice", id="isl-voice-agent"),
         instructions=_load_instructions(),
         processors=[ISLProcessor(fps=5)],
-        llm=gemini.Realtime(fps=3),
-        tts=elevenlabs.TTS(model_id="eleven_turbo_v2", voice_id=voice_id),
-        stt=deepgram.STT(model="nova-3", language="en-IN"),
+        llm=gemini.Realtime(fps=3),  # Handles STT/TTS natively; no separate Deepgram/ElevenLabs
     )
 
 
