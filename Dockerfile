@@ -25,5 +25,7 @@ RUN pip install --no-cache-dir uv && uv pip install --system -e .
 EXPOSE 8000
 
 ENV PYTHONUNBUFFERED=1
+# Render provides PORT; default 8000 for local
+ENV PORT=8000
 
-CMD ["python", "main.py", "serve", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "python main.py serve --host 0.0.0.0 --port ${PORT}"]
