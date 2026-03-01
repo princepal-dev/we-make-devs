@@ -14,7 +14,12 @@ Integrate the ISL Voice backend API into the mobile app. Sync every API call wit
 const BASE_URL = "https://we-make-devs.onrender.com";
 ```
 
-**Rule:** Base URL = origin only (no trailing slash, no path). Every API path starts with `/api/`.
+**Rule:** Base URL = origin ONLY. No `/api`, no trailing slash, no path.
+
+```
+✓ BASE_URL = "https://we-make-devs.onrender.com"
+✗ BASE_URL = "https://we-make-devs.onrender.com/api"  ← causes JSON parse error (hits /, returns HTML)
+```
 
 **URL pattern:** `BASE_URL + "/api/" + endpoint` (e.g. `BASE_URL + "/api/health"`)
 
@@ -103,7 +108,6 @@ const tokenProvider = async () => {
 
 ### Do not
 
-- Use `BASE_URL + "/health"` (missing `/api`)
-- Append `/health` or any path to `BASE_URL` when defining it
+- Include `/api` in BASE_URL — causes JSON parse error (requests hit `/` which returns HTML)
+- Use `BASE_URL + "/health"` (missing `/api` in path)
 - Ask the user for API URL or Stream API key — fetch from `/api/config`
-- Parse JSON from the root `/` path — it returns HTML

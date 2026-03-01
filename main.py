@@ -148,6 +148,11 @@ def _add_routes(runner: Runner) -> None:
     async def config():
         return _get_config()
 
+    @runner.fast_api.get("/api")
+    async def api_root():
+        """Return JSON for BASE_URL + /api (connection test)."""
+        return {"status": "ok", "message": "ISL Voice API"}
+
     @runner.fast_api.get("/health")
     async def health():
         return HEALTH_RESPONSE
@@ -180,10 +185,12 @@ def _add_middleware(runner: Runner) -> None:
     @runner.fast_api.middleware("http")
     async def rewrite_api(request, call_next):
         p = request.scope.get("path", "")
-        if p.startswith("/api"):
-            p = p[4:] or "/"
-        if p == "/token":
-            p = "/auth/token"  # /api/token -> /auth/token
+        if p.startswith("/api/"):
+            p = "/" + p[5:]  # /api/health -> /health
+            if p == "/token":
+                p = "/auth/token"
+        elif p == "/api":
+            p = "/api"  # keep: /api returns JSON for connection test
         request.scope["path"] = p
         return await call_next(request)
 
