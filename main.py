@@ -173,10 +173,33 @@ def _add_custom_routes(runner: Runner) -> None:
 def _add_keepalive(runner: Runner) -> None:
     """Add /keepalive and /health endpoints for free-tier deployment."""
 
+    _health_body = {"status": "ok"}
+
     @runner.fast_api.get("/health")
     async def health():
         """Health check — returns JSON for liveness probes."""
-        return {"status": "ok"}
+        return _health_body
+
+    # Aliases for Render / load balancer probes that may use different paths
+    @runner.fast_api.get("/ready")
+    async def ready():
+        return _health_body
+
+    @runner.fast_api.get("/health/health")
+    async def health_health():
+        return _health_body
+
+    @runner.fast_api.get("/api/health")
+    async def api_health():
+        return _health_body
+
+    @runner.fast_api.get("/api/health/health")
+    async def api_health_health():
+        return _health_body
+
+    @runner.fast_api.get("/ready/health")
+    async def ready_health():
+        return _health_body
 
     @runner.fast_api.get("/keepalive")
     async def keepalive():
@@ -218,9 +241,9 @@ def _print_startup_banner() -> None:
    ├── POST   /sessions       → Start agent session
    ├── DELETE /sessions/{id}  → End session
    ├── GET    /sessions/{id}  → Session status
-   ├── POST   /auth/token     → Get Stream token
+   ├── POST   /auth/token     → Get Stream token (also /api/auth/token)
    ├── GET    /keepalive      → Keep-alive (ping every 10 min on free tier)
-   └── GET    /health         → Health check
+   └── GET    /health, /ready, /api/health  → Health check (and aliases)
 
    Docs: http://localhost:8000/docs
 """)
@@ -233,6 +256,16 @@ if __name__ == "__main__":
     _add_home_page(runner)
     _add_custom_routes(runner)
     _add_keepalive(runner)
+
+    # Rewrite /api/* to /* so mobile apps using base URL + /api work
+    @runner.fast_api.middleware("http")
+    async def rewrite_api_prefix(request, call_next):
+        path = request.scope.get("path", "")
+        if path.startswith("/api/"):
+            request.scope["path"] = "/" + path[5:]  # /api/auth/token -> /auth/token
+        elif path == "/api":
+            request.scope["path"] = "/"
+        return await call_next(request)
 
     # GZip compression for API responses (saves bandwidth)
     runner.fast_api.add_middleware(GZipMiddleware, minimum_size=500)
