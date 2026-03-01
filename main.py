@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = os.getenv("APP_URL", "https://we-make-devs.onrender.com").rstrip("/")
 DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
-HEALTH_RESPONSE = {"status": "ok"}
+HEALTH_RESPONSE = {"status": "ok", "message": "ISL Voice API"}
 KEEPALIVE_RESPONSE = {"status": "ok", "message": "keepalive"}
 
 _INSTRUCTIONS_CACHE: str | None = None
