@@ -79,32 +79,56 @@ PARTICIPANT_POLL_INTERVAL = int(os.getenv("PARTICIPANT_POLL_INTERVAL", "2"))
 AGENT_USER_ID = "isl-voice-agent"
 
 
-# Video API uses video.stream-io-api.com; chat uses chat.stream-io-api.com
+# Video API uses video.stream-io-api.com (per Stream docs)
 STREAM_VIDEO_BASE_URL = "https://video.stream-io-api.com/"
 
 
-async def _has_non_agent_participant(call_type: str, call_id: str) -> bool:
-    """Check if the call has at least one participant who is not the agent."""
-    try:
-        from getstream import Stream
-    except ImportError:
-        return False
+def _stream_video_client():
+    """Stream Video client for server-side API calls (uses Video base URL)."""
+    from getstream import Stream
     api_key = os.getenv("STREAM_API_KEY")
     api_secret = os.getenv("STREAM_API_SECRET")
     if not api_key or not api_secret:
-        return False
+        return None
+    return Stream(
+        api_key=api_key,
+        api_secret=api_secret,
+        base_url=STREAM_VIDEO_BASE_URL,
+    )
+
+
+async def _ensure_call_exists(call_type: str, call_id: str) -> bool:
+    """Create the call if it doesn't exist (per Stream API: get_or_create). Returns True on success."""
     try:
-        client = Stream(
-            api_key=api_key,
-            api_secret=api_secret,
-            base_url=STREAM_VIDEO_BASE_URL,
+        client = _stream_video_client()
+        if not client:
+            return False
+        await asyncio.to_thread(
+            client.video.get_or_create_call,
+            type=call_type,
+            id=call_id,
+            members_limit=50,
         )
+        return True
+    except Exception as e:
+        logger.warning("Could not ensure call exists: %s", e)
+        return False
+
+
+async def _has_non_agent_participant(call_type: str, call_id: str) -> bool:
+    """Check if the call has at least one member who is not the agent (GET /api/v2/video/call/{type}/{id})."""
+    try:
+        client = _stream_video_client()
+        if not client:
+            return False
         resp = await asyncio.to_thread(
-            client.video.query_call_members, id=call_id, type=call_type
+            client.video.get_call,
+            type=call_type,
+            id=call_id,
+            members_limit=50,
         )
-        members = getattr(resp, "data", resp)
-        if hasattr(members, "members"):
-            members = members.members
+        data = getattr(resp, "data", resp)
+        members = (getattr(data, "members", None) or []) if data else []
         if not members:
             return False
         for m in members:
@@ -137,6 +161,8 @@ async def _wait_for_participant(call_type: str, call_id: str, max_wait: int) -> 
 
 async def join_call(agent: Agent, call_type: str, call_id: str, **kwargs) -> None:
     await agent.create_user()  # Required: upsert agent user in Stream before create_call
+    # Per Stream docs: create the call first so it exists for the mobile to join (get_or_create)
+    await _ensure_call_exists(call_type, call_id)
     if PARTICIPANT_JOIN_DELAY > 0:
         logger.info(
             "Polling for participant (max %ds, interval %ds)...",
