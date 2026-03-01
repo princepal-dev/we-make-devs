@@ -2,7 +2,7 @@
 name = "isl-voice-backend"
 version = "0.1.0"
 description = "ISL Sign Language to Voice — Vision Agents Backend"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<4"
 dependencies = [
     "vision-agents[getstream,gemini,elevenlabs,deepgram]",
     "roboflow>=0.2.0",
