@@ -79,6 +79,10 @@ PARTICIPANT_POLL_INTERVAL = int(os.getenv("PARTICIPANT_POLL_INTERVAL", "2"))
 AGENT_USER_ID = "isl-voice-agent"
 
 
+# Video API uses video.stream-io-api.com; chat uses chat.stream-io-api.com
+STREAM_VIDEO_BASE_URL = "https://video.stream-io-api.com/"
+
+
 async def _has_non_agent_participant(call_type: str, call_id: str) -> bool:
     """Check if the call has at least one participant who is not the agent."""
     try:
@@ -90,7 +94,11 @@ async def _has_non_agent_participant(call_type: str, call_id: str) -> bool:
     if not api_key or not api_secret:
         return False
     try:
-        client = Stream(api_key=api_key, api_secret=api_secret)
+        client = Stream(
+            api_key=api_key,
+            api_secret=api_secret,
+            base_url=STREAM_VIDEO_BASE_URL,
+        )
         resp = await asyncio.to_thread(
             client.video.query_call_members, id=call_id, type=call_type
         )
@@ -108,7 +116,9 @@ async def _has_non_agent_participant(call_type: str, call_id: str) -> bool:
                 return True
         return False
     except Exception as e:
-        if "Can't find call" in str(e) or "find call" in str(e).lower():
+        err = str(e).lower()
+        # Call doesn't exist yet (404) or not found = no participants
+        if "find call" in err or "404" in err or "not found" in err:
             return False
         logger.debug("Participant poll error: %s", e)
         return False
