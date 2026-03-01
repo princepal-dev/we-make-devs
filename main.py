@@ -72,8 +72,9 @@ async def create_agent(**kwargs) -> Agent:
     )
 
 
-# Delay (seconds) before agent joins — gives mobile app time to join the call first
-PARTICIPANT_JOIN_DELAY = int(os.getenv("PARTICIPANT_JOIN_DELAY", "12"))
+# Delay (seconds) before agent joins — gives mobile app time to join the call first.
+# Vision Agents also waits ~10s for participants after joining; total window ≈ delay + 10s.
+PARTICIPANT_JOIN_DELAY = int(os.getenv("PARTICIPANT_JOIN_DELAY", "30"))
 
 
 async def join_call(agent: Agent, call_type: str, call_id: str, **kwargs) -> None:

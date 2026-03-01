@@ -64,7 +64,7 @@ const BASE_URL = "https://we-make-devs.onrender.com";
 4. **Join call (order matters)**
    - Generate `call_id`: `call-${user_id}-${Date.now()}` or UUID
    - **First:** `await call.join()` — join the Stream Video call with `call_type: "default"` and `call_id`. Wait until joined.
-   - **Then:** `POST ${BASE_URL}/api/sessions` with `{ call_type: "default", call_id }` — starts the agent. The agent waits up to 10s for participants; the user must already be in the call.
+   - **Then:** `POST ${BASE_URL}/api/sessions` with `{ call_type: "default", call_id }` — starts the agent. Backend waits ~30s before the agent joins, then the agent waits ~10s for participants. User must be in the call before POST (or join within ~40s of POST).
 
 5. **User signs → agent speaks**
 
