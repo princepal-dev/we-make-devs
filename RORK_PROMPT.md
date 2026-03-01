@@ -61,10 +61,10 @@ const BASE_URL = "https://we-make-devs.onrender.com";
    - Use `token` from step 2
    - For token refresh (tokenProvider): `GET ${BASE_URL}/api/auth/token?user_id=${user.id}&user_name=${user.name}`
 
-4. **Join call**
+4. **Join call (order matters)**
    - Generate `call_id`: `call-${user_id}-${Date.now()}` or UUID
-   - Join Stream Video call with `call_type: "default"` and `call_id`
-   - Immediately call `POST ${BASE_URL}/api/sessions` with `{ call_type: "default", call_id }` — this starts the ISL Voice agent in the same call
+   - **First:** `await call.join()` — join the Stream Video call with `call_type: "default"` and `call_id`. Wait until joined.
+   - **Then:** `POST ${BASE_URL}/api/sessions` with `{ call_type: "default", call_id }` — starts the agent. The agent waits up to 10s for participants; the user must already be in the call.
 
 5. **User signs → agent speaks**
 
@@ -111,3 +111,4 @@ const tokenProvider = async () => {
 - Include `/api` in BASE_URL — causes JSON parse error (requests hit `/` which returns HTML)
 - Use `BASE_URL + "/health"` (missing `/api` in path)
 - Ask the user for API URL or Stream API key — fetch from `/api/config`
+- **Call POST /sessions before the user has joined the Stream call** — agent will see "No participants" and exit. Join first, then POST /sessions.

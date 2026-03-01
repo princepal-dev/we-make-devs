@@ -72,8 +72,15 @@ async def create_agent(**kwargs) -> Agent:
     )
 
 
+# Delay (seconds) before agent joins — gives mobile app time to join the call first
+PARTICIPANT_JOIN_DELAY = int(os.getenv("PARTICIPANT_JOIN_DELAY", "12"))
+
+
 async def join_call(agent: Agent, call_type: str, call_id: str, **kwargs) -> None:
     await agent.create_user()  # Required: upsert agent user in Stream before create_call
+    if PARTICIPANT_JOIN_DELAY > 0:
+        logger.info("Waiting %ds for participant to join before agent joins...", PARTICIPANT_JOIN_DELAY)
+        await asyncio.sleep(PARTICIPANT_JOIN_DELAY)
     call = await agent.create_call(call_type, call_id)
     async with agent.join(call):
         await agent.finish()

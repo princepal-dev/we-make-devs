@@ -25,5 +25,5 @@ https://we-make-devs.onrender.com
 2. **User enters name** → create `user_id` (e.g. `user-${slugify(name)}-${Date.now()}`)
 3. **Get token** → `POST /api/auth/token` with `{ user_id, user_name }`
 4. **Init Stream client** → use `stream_api_key` and `token` from responses
-5. **Join call** → create `call_id`, join Stream call with `call_type: "default"`
-6. **Start agent** → `POST /api/sessions` with `{ call_type: "default", call_id }`
+5. **Join call** → create `call_id`, **await** `call.join()` (user must be in call first)
+6. **Start agent** → `POST /api/sessions` with `{ call_type: "default", call_id }` — only after step 5 completes
