@@ -32,6 +32,17 @@ uv run main.py serve
 
 Server starts at `http://localhost:8000`. Swagger docs: `http://localhost:8000/docs`.
 
+## Docker (Render, Railway, etc.)
+
+The included Dockerfile installs FFmpeg for PyAV. To deploy:
+
+```bash
+docker build -t isl-voice .
+docker run -p 8000:8000 --env-file .env isl-voice
+```
+
+On Render: set **Runtime** to **Docker** and use the provided `Dockerfile`. Add env vars in the Dashboard.
+
 ## Endpoints
 
 | Method | Endpoint | Purpose |

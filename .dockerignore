@@ -1,0 +1,11 @@
+.env
+.env.*
+.venv
+__pycache__
+*.pyc
+.git
+.gitignore
+*.md
+!agent/instructions.md
+.python-version
+uv.lock

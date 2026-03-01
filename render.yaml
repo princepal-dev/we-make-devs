@@ -1,0 +1,8 @@
+# Render Blueprint — ISL Voice Backend
+# Connect your repo; add env vars in Dashboard (STREAM_API_KEY, GOOGLE_API_KEY, etc.)
+services:
+  - type: web
+    name: isl-voice-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
