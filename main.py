@@ -77,6 +77,7 @@ async def create_agent(**kwargs) -> Agent:
 
 
 async def join_call(agent: Agent, call_type: str, call_id: str, **kwargs) -> None:
+    await agent.create_user()  # Required: upsert agent user in Stream before create_call
     call = await agent.create_call(call_type, call_id)
     async with agent.join(call):
         await agent.finish()
