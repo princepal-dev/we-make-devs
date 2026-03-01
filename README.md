@@ -1,82 +1,94 @@
 # ISL Voice Backend
 
-Indian Sign Language to Voice AI — Real-time sign-to-speech backend using Vision Agents, Roboflow, Gemini, and ElevenLabs.
+Indian Sign Language to Voice AI — Real-time sign-to-speech backend using Vision Agents, Roboflow, Gemini, ElevenLabs, and Stream WebRTC.
 
-**Requirements:** Python 3.12+, [uv](https://docs.astral.sh/uv/) (or pip)
+**Mobile integration:** [RORK_PROMPT.md](./RORK_PROMPT.md) | [MOBILE_APP_INTEGRATION.md](./MOBILE_APP_INTEGRATION.md)
 
-## Setup
+---
+
+## Quick start
 
 ```bash
-# Install uv (recommended): curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Create venv and install dependencies
 uv sync
-
-# Or with pip (Python 3.12+):
-pip install "vision-agents[getstream,gemini,elevenlabs,deepgram]" roboflow python-dotenv stream-chat Pillow opencv-python
-
-# Copy env template and fill keys
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with API keys
 
-# Optional: for free-tier deployment (e.g. Render)
-# APP_URL=https://your-app.onrender.com
-# LOG_LEVEL=INFO  # or DEBUG for sign detection logs
-```
-
-## Run
-
-```bash
 uv run main.py serve
 ```
 
-Server starts at `http://localhost:8000`. Swagger docs: `http://localhost:8000/docs`.
+Server: `http://localhost:8000` · Docs: `http://localhost:8000/docs`
 
-## Docker (Render, Railway, etc.)
+---
 
-The included Dockerfile installs FFmpeg for PyAV. To deploy:
+## API
+
+**Base URL:** `https://we-make-devs.onrender.com`
+
+**Rule:** All endpoints use the `/api` prefix. No user configuration needed.
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/health` | Health check |
+| GET | `/api/config` | Config (`stream_api_key`, `base_url`, `api_prefix`) |
+| POST | `/api/auth/token` | Get Stream token (body: `user_id`, `user_name`) |
+| GET | `/api/auth/token` | Get token (query: `user_id`, `user_name`) — for tokenProvider |
+| POST | `/api/sessions` | Start agent (body: `call_type`, `call_id`) |
+| DELETE | `/api/sessions/{id}` | End session |
+
+**Note:** `/api/token` is rewritten to `/api/auth/token`.
+
+---
+
+## Examples
+
+```bash
+# Health
+curl https://we-make-devs.onrender.com/api/health
+
+# Config
+curl https://we-make-devs.onrender.com/api/config
+
+# Token (POST)
+curl -X POST https://we-make-devs.onrender.com/api/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "user-123", "user_name": "John"}'
+
+# Token (GET, for tokenProvider)
+curl "https://we-make-devs.onrender.com/api/auth/token?user_id=user-123&user_name=John"
+
+# Start session
+curl -X POST https://we-make-devs.onrender.com/api/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"call_type": "default", "call_id": "call-123"}'
+```
+
+---
+
+## Setup
+
+**Requirements:** Python 3.12+, [uv](https://docs.astral.sh/uv/) or pip
+
+```bash
+uv sync
+
+# Or pip
+pip install "vision-agents[getstream,gemini,elevenlabs,deepgram]" roboflow python-dotenv stream-chat Pillow opencv-python
+```
+
+Copy `.env.example` to `.env` and fill in:
+
+- `STREAM_API_KEY`, `STREAM_API_SECRET`
+- `GOOGLE_API_KEY`, `ELEVENLABS_API_KEY`, `DEEPGRAM_API_KEY`
+- `ROBOFLOW_API_KEY`, `ROBOFLOW_WORKSPACE`, `ROBOFLOW_PROJECT`
+- `APP_URL` (optional, for keepalive self-ping on free tier)
+
+---
+
+## Docker
 
 ```bash
 docker build -t isl-voice .
 docker run -p 8000:8000 --env-file .env isl-voice
 ```
 
-On Render: set **Runtime** to **Docker** and use the provided `Dockerfile`. Add env vars in the Dashboard.
-
-## Endpoints
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| POST | `/sessions` | Start agent session |
-| DELETE | `/sessions/{session_id}` | End session |
-| GET | `/sessions/{session_id}` | Session status |
-| POST | `/auth/token` | Get Stream WebRTC token |
-| GET | `/keepalive` | Keep-alive (ping every 10 min on free tier) |
-| GET | `/health` | Health check |
-| GET | `/ready` | Readiness check |
-
-## Examples
-
-**Get Stream token (for mobile app):**
-```bash
-curl -X POST http://localhost:8000/auth/token \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": "test-user", "user_name": "Test User"}'
-```
-
-**Create session:**
-```bash
-curl -X POST http://localhost:8000/sessions \
-  -H "Content-Type: application/json" \
-  -d '{"call_type": "default", "call_id": "test-123"}'
-```
-
-**Health check:**
-```bash
-curl http://localhost:8000/health
-```
-
-**Keepalive (for external cron or self-ping):**
-```bash
-curl http://localhost:8000/keepalive
-```
+On Render: Runtime = Docker, use `render.yaml` or add env vars in the Dashboard.

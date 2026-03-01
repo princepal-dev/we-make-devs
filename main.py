@@ -1,6 +1,6 @@
 """
 ISL Voice Backend — Indian Sign Language to Voice AI.
-Vision Agents Runner + custom /auth/token for Stream WebRTC.
+Vision Agents + Stream WebRTC. Mobile app uses /api prefix for all endpoints.
 """
 
 import asyncio
@@ -12,87 +12,72 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load env FIRST before any plugin imports
 load_dotenv()
 
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
+from pydantic import BaseModel
 
 from vision_agents.core import Agent, AgentLauncher, Runner, User
 from vision_agents.plugins import deepgram, elevenlabs, gemini, getstream
 
 from agent.isl_processor import ISLProcessor
 
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
+logging.basicConfig(
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
+)
 logger = logging.getLogger(__name__)
 
-# Default voice from .env.example (Rachel)
+BASE_URL = os.getenv("APP_URL", "https://we-make-devs.onrender.com").rstrip("/")
 DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
+HEALTH_RESPONSE = {"status": "ok"}
+KEEPALIVE_RESPONSE = {"status": "ok", "message": "keepalive"}
 
-# Cache instructions in memory (avoid disk read per session)
 _INSTRUCTIONS_CACHE: str | None = None
 _STREAM_CHAT_CLIENT: object | None = None
+_CONFIG_CACHE: dict | None = None
 
 
 def _load_instructions() -> str:
-    """Load agent instructions. Cached in memory for reuse across sessions."""
     global _INSTRUCTIONS_CACHE
     if _INSTRUCTIONS_CACHE is not None:
         return _INSTRUCTIONS_CACHE
-    instructions_path = Path(__file__).parent / "agent" / "instructions.md"
-    if not instructions_path.exists():
-        logger.error("Missing instructions file: %s", instructions_path)
+    path = Path(__file__).parent / "agent" / "instructions.md"
+    if not path.exists():
+        logger.error("Missing instructions: %s", path)
         sys.exit(1)
-    try:
-        _INSTRUCTIONS_CACHE = instructions_path.read_text(encoding="utf-8")
-        return _INSTRUCTIONS_CACHE
-    except OSError as e:
-        logger.error("Failed to read instructions: %s", e)
-        sys.exit(1)
+    _INSTRUCTIONS_CACHE = path.read_text(encoding="utf-8")
+    return _INSTRUCTIONS_CACHE
 
 
 def _validate_env() -> None:
-    """Validate required env vars at startup. Log warnings for optional ones."""
-    required = {
-        "STREAM_API_KEY": "Stream WebRTC",
-        "STREAM_API_SECRET": "Stream WebRTC",
-        "GOOGLE_API_KEY": "Gemini LLM",
-        "ELEVENLABS_API_KEY": "ElevenLabs TTS",
-        "DEEPGRAM_API_KEY": "Deepgram STT",
-        "ROBOFLOW_API_KEY": "Roboflow ISL detection",
-        "ROBOFLOW_WORKSPACE": "Roboflow workspace",
-        "ROBOFLOW_PROJECT": "Roboflow project",
-    }
+    required = [
+        "STREAM_API_KEY", "STREAM_API_SECRET",
+        "GOOGLE_API_KEY", "ELEVENLABS_API_KEY", "DEEPGRAM_API_KEY",
+        "ROBOFLOW_API_KEY", "ROBOFLOW_WORKSPACE", "ROBOFLOW_PROJECT",
+    ]
     missing = [k for k in required if not os.getenv(k)]
     if missing:
-        logger.warning(
-            "Missing env vars (agent may fail at runtime): %s",
-            ", ".join(missing),
-        )
+        logger.warning("Missing env: %s", ", ".join(missing))
 
 
 async def create_agent(**kwargs) -> Agent:
-    """Factory: create ISL Voice agent with Roboflow processor, Gemini, ElevenLabs, Deepgram."""
-    instructions = _load_instructions()
     voice_id = os.getenv("ELEVENLABS_VOICE_ID") or DEFAULT_VOICE_ID
-
-    agent = Agent(
+    return Agent(
         edge=getstream.Edge(),
         agent_user=User(name="ISL Voice", id="isl-voice-agent"),
-        instructions=instructions,
+        instructions=_load_instructions(),
         processors=[ISLProcessor(fps=5)],
         llm=gemini.Realtime(fps=3),
         tts=elevenlabs.TTS(model_id="eleven_turbo_v2", voice_id=voice_id),
         stt=deepgram.STT(model="nova-3", language="en-IN"),
     )
-    return agent
 
 
 async def join_call(agent: Agent, call_type: str, call_id: str, **kwargs) -> None:
-    """Join the call, wait for participant, run until finish."""
     call = await agent.create_call(call_type, call_id)
-
     async with agent.join(call):
         await agent.finish()
 
@@ -107,200 +92,115 @@ def _create_runner() -> Runner:
     return Runner(launcher)
 
 
-def _add_home_page(runner: Runner) -> None:
-    """Serve landing page at /."""
-    from fastapi.responses import HTMLResponse, FileResponse
+def _get_config() -> dict:
+    """Cached config for /config endpoint (env unchanged at runtime)."""
+    global _CONFIG_CACHE
+    if _CONFIG_CACHE is None:
+        _CONFIG_CACHE = {
+            "stream_api_key": os.getenv("STREAM_API_KEY", ""),
+            "base_url": BASE_URL,
+            "api_prefix": "/api",
+        }
+    return _CONFIG_CACHE
+
+
+def _add_routes(runner: Runner) -> None:
+    class TokenRequest(BaseModel):
+        user_id: str
+        user_name: str = ""
 
     index_path = Path(__file__).parent / "static" / "index.html"
+
+    async def _auth_token(req: TokenRequest) -> dict:
+        user_id = (req.user_id or "").strip()
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id required")
+        api_key, api_secret = os.getenv("STREAM_API_KEY"), os.getenv("STREAM_API_SECRET")
+        if not api_key or not api_secret:
+            raise HTTPException(status_code=500, detail="Stream credentials not configured")
+        try:
+            global _STREAM_CHAT_CLIENT
+            if _STREAM_CHAT_CLIENT is None:
+                from stream_chat import StreamChat
+                _STREAM_CHAT_CLIENT = StreamChat(api_key=api_key, api_secret=api_secret)
+            token = _STREAM_CHAT_CLIENT.create_token(user_id)
+            name = (req.user_name or "").strip() or user_id
+            return {"token": token, "user_id": user_id, "user_name": name}
+        except Exception as e:
+            logger.exception("Token creation failed: %s", e)
+            raise HTTPException(status_code=500, detail="Failed to create token")
 
     @runner.fast_api.get("/", response_class=HTMLResponse)
     async def home():
         if index_path.exists():
             return FileResponse(index_path, media_type="text/html")
-        return HTMLResponse(
-            "<h1>ISL Voice</h1><p>Indian Sign Language to Voice AI. <a href='/docs'>API Docs</a></p>",
-            status_code=200,
-        )
-
-
-def _add_custom_routes(runner: Runner) -> None:
-    """Add custom /auth/token endpoint for Stream WebRTC auth."""
-
-    from fastapi import HTTPException
-    from pydantic import BaseModel
-
-    class TokenRequest(BaseModel):
-        user_id: str
-        user_name: str = ""
-
-    async def _auth_token_impl(body: TokenRequest):
-        """Generate Stream token for mobile app WebRTC auth."""
-        user_id = (body.user_id or "").strip()
-        user_name = (body.user_name or "").strip()
-        if not user_id:
-            raise HTTPException(status_code=400, detail="user_id required")
-
-        api_key = os.getenv("STREAM_API_KEY")
-        api_secret = os.getenv("STREAM_API_SECRET")
-        if not api_key or not api_secret:
-            raise HTTPException(
-                status_code=500,
-                detail="Stream credentials not configured",
-            )
-
-        try:
-            global _STREAM_CHAT_CLIENT
-            if _STREAM_CHAT_CLIENT is None:
-                from stream_chat import StreamChat
-
-                _STREAM_CHAT_CLIENT = StreamChat(api_key=api_key, api_secret=api_secret)
-            token = _STREAM_CHAT_CLIENT.create_token(user_id)
-            return {
-                "token": token,
-                "user_id": user_id,
-                "user_name": user_name or user_id,
-            }
-        except Exception as e:
-            logger.exception("Token creation failed: %s", e)
-            # Don't leak internal details; return generic message
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to create token. Check server logs.",
-            )
+        return HTMLResponse("<h1>ISL Voice</h1><p><a href='/docs'>API Docs</a></p>")
 
     @runner.fast_api.post("/auth/token")
-    async def auth_token(body: TokenRequest):
-        return await _auth_token_impl(body)
+    async def auth_post(body: TokenRequest):
+        return await _auth_token(body)
 
-    # Alias for apps/tokenProvider calling /token or /api/token
-    @runner.fast_api.post("/token")
-    async def token_post(body: TokenRequest):
-        return await _auth_token_impl(body)
-
-    # GET support for tokenProvider: fetch("/api/token?user_id=xxx")
-    @runner.fast_api.get("/token")
     @runner.fast_api.get("/auth/token")
-    async def token_get(user_id: str = "", user_name: str = ""):
-        return await _auth_token_impl(TokenRequest(user_id=user_id, user_name=user_name))
+    async def auth_get(user_id: str = "", user_name: str = ""):
+        return await _auth_token(TokenRequest(user_id=user_id, user_name=user_name))
 
     @runner.fast_api.get("/config")
     async def config():
-        """Return public config for mobile app — no user input required."""
-        api_key = os.getenv("STREAM_API_KEY", "")
-        return {
-            "stream_api_key": api_key,
-            "base_url": os.getenv("APP_URL", "https://we-make-devs.onrender.com").rstrip("/"),
-        }
-
-
-def _add_keepalive(runner: Runner) -> None:
-    """Add /keepalive and /health endpoints for free-tier deployment."""
-
-    _health_body = {"status": "ok"}
+        return _get_config()
 
     @runner.fast_api.get("/health")
     async def health():
-        """Health check — returns JSON for liveness probes."""
-        return _health_body
-
-    # Aliases for Render / load balancer probes that may use different paths
-    @runner.fast_api.get("/ready")
-    async def ready():
-        return _health_body
-
-    @runner.fast_api.get("/health/health")
-    async def health_health():
-        return _health_body
-
-    @runner.fast_api.get("/api/health")
-    async def api_health():
-        return _health_body
-
-    @runner.fast_api.get("/api/health/health")
-    async def api_health_health():
-        return _health_body
-
-    @runner.fast_api.get("/ready/health")
-    async def ready_health():
-        return _health_body
+        return HEALTH_RESPONSE
 
     @runner.fast_api.get("/keepalive")
     async def keepalive():
-        """Health-check endpoint. Ping every 10 min to prevent free-tier spin-down."""
-        return {"status": "ok", "message": "keepalive"}
+        return KEEPALIVE_RESPONSE
 
-    app_url = os.getenv("APP_URL", "").rstrip("/")
 
-    def _ping_sync(base_url: str) -> None:
-        try:
-            req = urllib.request.Request(f"{base_url}/keepalive")
-            with urllib.request.urlopen(req, timeout=10) as _:
-                logger.debug("Keepalive self-ping OK")
-        except Exception as e:
-            logger.warning("Keepalive self-ping failed: %s", e)
-
-    async def _keepalive_loop() -> None:
-        """Background loop: ping self every 10 minutes to prevent free-tier spin-down."""
-        while True:
-            await asyncio.sleep(600)  # 10 minutes
-            await asyncio.to_thread(_ping_sync, app_url)
-
+def _add_keepalive_loop(runner: Runner) -> None:
     @runner.fast_api.on_event("startup")
-    async def _start_keepalive_task():
-        if app_url:
-            asyncio.create_task(_keepalive_loop())
-            logger.info("Keepalive: self-pinging %s/keepalive every 10 min", app_url)
-        else:
-            logger.info(
-                "Keepalive: Set APP_URL in .env to enable self-ping (e.g. https://your-app.onrender.com)"
-            )
+    async def _start():
+        if not os.getenv("APP_URL"):
+            return
+        url = f"{BASE_URL}/keepalive"
+        async def _loop():
+            while True:
+                await asyncio.sleep(600)
+                try:
+                    await asyncio.to_thread(
+                        lambda: urllib.request.urlopen(urllib.request.Request(url), timeout=10)
+                    )
+                except Exception as e:
+                    logger.warning("Keepalive failed: %s", e)
+        asyncio.create_task(_loop())
+        logger.info("Keepalive: %s every 10 min", url)
 
 
-def _print_startup_banner() -> None:
-    print("""
-✋ ISL Voice Backend starting...
-   Endpoints:
-   ├── GET    /               → Home / landing page
-   ├── POST   /sessions       → Start agent session
-   ├── DELETE /sessions/{id}  → End session
-   ├── GET    /sessions/{id}  → Session status
-   ├── GET    /config         → Public config (stream_api_key, base_url)
-   ├── POST   /auth/token     → Get Stream token (also /token, /api/token; GET with ?user_id=)
-   ├── GET    /keepalive      → Keep-alive (ping every 10 min on free tier)
-   └── GET    /health, /ready, /api/health  → Health check (and aliases)
+def _add_middleware(runner: Runner) -> None:
+    @runner.fast_api.middleware("http")
+    async def rewrite_api(request, call_next):
+        p = request.scope.get("path", "")
+        if p.startswith("/api"):
+            p = p[4:] or "/"
+        if p == "/token":
+            p = "/auth/token"  # /api/token -> /auth/token
+        request.scope["path"] = p
+        return await call_next(request)
 
-   Docs: http://localhost:8000/docs
-""")
+    runner.fast_api.add_middleware(GZipMiddleware, minimum_size=500)
+    runner.fast_api.add_middleware(
+        CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+    )
 
 
 if __name__ == "__main__":
     _validate_env()
-    _load_instructions()  # Fail fast if instructions file missing
+    _load_instructions()
+
     runner = _create_runner()
-    _add_home_page(runner)
-    _add_custom_routes(runner)
-    _add_keepalive(runner)
+    _add_routes(runner)
+    _add_keepalive_loop(runner)
+    _add_middleware(runner)
 
-    # Rewrite /api/* to /* so mobile apps using base URL + /api work
-    @runner.fast_api.middleware("http")
-    async def rewrite_api_prefix(request, call_next):
-        path = request.scope.get("path", "")
-        if path.startswith("/api/"):
-            request.scope["path"] = "/" + path[5:]  # /api/auth/token -> /auth/token
-        elif path == "/api":
-            request.scope["path"] = "/"
-        return await call_next(request)
-
-    # GZip compression for API responses (saves bandwidth)
-    runner.fast_api.add_middleware(GZipMiddleware, minimum_size=500)
-
-    # CORS for mobile app
-    runner.fast_api.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    _print_startup_banner()
+    print("\n✋ ISL Voice — BASE_URL/api/health | /api/config | /api/auth/token | /api/sessions\n")
     runner.cli()
