@@ -133,8 +133,7 @@ def _add_custom_routes(runner: Runner) -> None:
         user_id: str
         user_name: str = ""
 
-    @runner.fast_api.post("/auth/token")
-    async def auth_token(body: TokenRequest):
+    async def _auth_token_impl(body: TokenRequest):
         """Generate Stream token for mobile app WebRTC auth."""
         user_id = (body.user_id or "").strip()
         user_name = (body.user_name or "").strip()
@@ -168,6 +167,30 @@ def _add_custom_routes(runner: Runner) -> None:
                 status_code=500,
                 detail="Failed to create token. Check server logs.",
             )
+
+    @runner.fast_api.post("/auth/token")
+    async def auth_token(body: TokenRequest):
+        return await _auth_token_impl(body)
+
+    # Alias for apps/tokenProvider calling /token or /api/token
+    @runner.fast_api.post("/token")
+    async def token_post(body: TokenRequest):
+        return await _auth_token_impl(body)
+
+    # GET support for tokenProvider: fetch("/api/token?user_id=xxx")
+    @runner.fast_api.get("/token")
+    @runner.fast_api.get("/auth/token")
+    async def token_get(user_id: str = "", user_name: str = ""):
+        return await _auth_token_impl(TokenRequest(user_id=user_id, user_name=user_name))
+
+    @runner.fast_api.get("/config")
+    async def config():
+        """Return public config for mobile app — no user input required."""
+        api_key = os.getenv("STREAM_API_KEY", "")
+        return {
+            "stream_api_key": api_key,
+            "base_url": os.getenv("APP_URL", "https://we-make-devs.onrender.com").rstrip("/"),
+        }
 
 
 def _add_keepalive(runner: Runner) -> None:
@@ -241,7 +264,8 @@ def _print_startup_banner() -> None:
    ├── POST   /sessions       → Start agent session
    ├── DELETE /sessions/{id}  → End session
    ├── GET    /sessions/{id}  → Session status
-   ├── POST   /auth/token     → Get Stream token (also /api/auth/token)
+   ├── GET    /config         → Public config (stream_api_key, base_url)
+   ├── POST   /auth/token     → Get Stream token (also /token, /api/token; GET with ?user_id=)
    ├── GET    /keepalive      → Keep-alive (ping every 10 min on free tier)
    └── GET    /health, /ready, /api/health  → Health check (and aliases)
 
